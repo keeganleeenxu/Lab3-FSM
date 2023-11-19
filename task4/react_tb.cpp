@@ -1,6 +1,6 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
-#include "Vdelay.h"
+#include "Vreact.h"
 
 #include "vbuddy.cpp"     // include vbuddy code
 #define MAX_SIM_CYC 100000
@@ -8,27 +8,27 @@
 int main(int argc, char **argv, char **env) {
   int simcyc;     // simulation clock count
   int tick;       // each clk cycle has two ticks for two edges
-  int lights = 0; // state to toggle LED lights
+  int data_out = 0; // state to toggle LED data_out
 
   Verilated::commandArgs(argc, argv);
   // init top verilog instance
-  Vdelay * top = new Vdelay;
+  Vreact * top = new Vreact;
   // init trace dump
   Verilated::traceEverOn(true);
   VerilatedVcdC* tfp = new VerilatedVcdC;
   top->trace (tfp, 99);
-  tfp->open ("delay.vcd");
+  tfp->open ("react.vcd");
  
   // init Vbuddy
   if (vbdOpen()!=1) return(-1);
-  vbdHeader("L3T4:React");
+  vbdHeader("Push!");
   vbdSetMode(1);        // Flag mode set to one-shot
 
   // initialize simulation inputs
   top->clk = 1;
   top->rst = 0;
+  top->N = 36;
   top->trigger = 0;
-  top->n = vbdValue();
   
   // run simulation for MAX_SIM_CYC clock cycles
   for (simcyc=0; simcyc<MAX_SIM_CYC; simcyc++) {
@@ -39,15 +39,22 @@ int main(int argc, char **argv, char **env) {
       top->eval ();
     }
 
-    // Display toggle neopixel
-    if (top->time_out) {
-      vbdBar(lights);
-      lights = lights ^ 0xFF;
+    if (top->trigger) {
+      vbdHeader("Get ready!");
+      vbdBar(top->data_out & 0xFF);
+      // Display toggle neopixel
+      if (top->cmd_seq) {
+        vbdBar(data_out);
+        data_out = data_out ^ 0xFF;
+      }
+      vbdCycle(simcyc);  
     }
+
+    
     // set up input signals of testbench
     top->rst = (simcyc < 2);    // assert reset for 1st cycle
     top->trigger = vbdFlag();
-    top->n = vbdValue();
+    top->N = vbdValue();
     vbdCycle(simcyc);
 
     if ((Verilated::gotFinish()) || (vbdGetkey()=='q'))  exit(0);
